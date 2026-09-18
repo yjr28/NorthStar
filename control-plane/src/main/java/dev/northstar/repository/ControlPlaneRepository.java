@@ -27,6 +27,9 @@ public class ControlPlaneRepository {
     public Optional<HostRecord> findHost(UUID id) { return jdbc.query("SELECT * FROM hosts WHERE id = ?", this::mapHost, id).stream().findFirst(); }
     public int deleteHost(UUID id) { return jdbc.update("DELETE FROM hosts WHERE id = ?", id); }
     public int touchHost(UUID id, OffsetDateTime seenAt) { return jdbc.update("UPDATE hosts SET last_seen_at = ? WHERE id = ?", seenAt, id); }
+    public void createCredential(UUID hostId,String tokenHash,OffsetDateTime at){jdbc.update("INSERT INTO host_credentials(host_id,token_hash,created_at) VALUES (?,?,?) ON CONFLICT (host_id) DO NOTHING",hostId,tokenHash,at);}
+    public Optional<String> credentialHash(UUID hostId){return jdbc.query("SELECT token_hash FROM host_credentials WHERE host_id=?",(r,n)->r.getString(1),hostId).stream().findFirst();}
+    public int rotateCredential(UUID hostId,String tokenHash,OffsetDateTime at){return jdbc.update("UPDATE host_credentials SET token_hash=?,rotated_at=? WHERE host_id=?",tokenHash,at,hostId);}
 
     public TelemetryRecord saveTelemetry(TelemetryRecord sample) {
         jdbc.update("INSERT INTO telemetry(id,host_id,collected_at,cpu_percent,memory_used_bytes,memory_total_bytes,load_1m,uptime_seconds,process_count) VALUES (?,?,?,?,?,?,?,?,?)", sample.id(), sample.hostId(), sample.collectedAt(), sample.cpuPercent(), sample.memoryUsedBytes(), sample.memoryTotalBytes(), sample.load1m(), sample.uptimeSeconds(), sample.processCount());
