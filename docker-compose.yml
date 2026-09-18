@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: northstar
+      POSTGRES_USER: northstar
+      POSTGRES_PASSWORD: northstar
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U northstar -d northstar"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - northstar_pg:/var/lib/postgresql/data
+  control-plane:
+    build: { context: ./control-plane }
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/northstar
+      DATABASE_USER: northstar
+      DATABASE_PASSWORD: northstar
+    ports: ["8080:8080"]
+    depends_on:
+      postgres: { condition: service_healthy }
+volumes:
+  northstar_pg:
