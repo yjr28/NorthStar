@@ -1,0 +1,15 @@
+server:
+  port: ${PORT:8080}
+spring:
+  application:
+    name: northstar-control-plane
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/northstar}
+    username: ${DATABASE_USER:northstar}
+    password: ${DATABASE_PASSWORD:northstar}
+  sql:
+    init:
+      mode: always
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
