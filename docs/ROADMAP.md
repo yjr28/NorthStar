@@ -17,7 +17,9 @@
 - [x] Idempotency keys for command creation
 - [x] Cursor-style telemetry pagination via `before`
 - [ ] Command leasing / retry-safe acknowledgements
-- [ ] Agent exponential backoff + local spool
+- [x] Agent exponential backoff + local telemetry spool
+
+The agent persists failed telemetry as newline-delimited JSON at `NORTHSTAR_SPOOL_PATH` (default `/tmp/northstar-telemetry.spool`), drains older samples before sending new telemetry, and applies jittered exponential retry backoff. `NORTHSTAR_RETRY_BASE_MS` and `NORTHSTAR_RETRY_MAX_MS` tune retry behavior.
 
 ## v0.3 — Security and observability
 - [ ] Per-host credentials and rotation
