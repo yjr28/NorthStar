@@ -12,10 +12,10 @@
 - [x] 100-host fleet simulator
 
 ## v0.2 — Reliability and API correctness
-- [ ] PostgreSQL-backed integration tests
-- [ ] Request validation + structured error envelope
-- [ ] Idempotency keys
-- [ ] Cursor pagination
+- [x] PostgreSQL-backed integration test suite
+- [x] Request validation + structured error envelope
+- [x] Idempotency keys for command creation
+- [x] Cursor-style telemetry pagination via `before`
 - [ ] Command leasing / retry-safe acknowledgements
 - [ ] Agent exponential backoff + local spool
 

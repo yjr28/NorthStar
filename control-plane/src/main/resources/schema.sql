@@ -13,6 +13,10 @@ CREATE INDEX IF NOT EXISTS idx_telemetry_host_collected ON telemetry(host_id,col
 CREATE TABLE IF NOT EXISTS commands (
  id UUID PRIMARY KEY, host_id UUID NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
  type VARCHAR(128) NOT NULL, payload TEXT NOT NULL, status VARCHAR(32) NOT NULL,
+ idempotency_key VARCHAR(128),
  created_at TIMESTAMPTZ NOT NULL, acknowledged_at TIMESTAMPTZ
 );
+ALTER TABLE commands ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(128);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_commands_idempotency_key
+  ON commands(idempotency_key) WHERE idempotency_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_commands_host_status ON commands(host_id,status,created_at);
