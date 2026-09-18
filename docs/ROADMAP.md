@@ -16,8 +16,10 @@
 - [x] Request validation + structured error envelope
 - [x] Idempotency keys for command creation
 - [x] Cursor-style telemetry pagination via `before`
-- [ ] Command leasing / retry-safe acknowledgements
+- [x] Command leasing / retry-safe acknowledgements
 - [x] Agent exponential backoff + local telemetry spool
+
+Command delivery uses short, server-issued leases. Pollers atomically claim only commands whose lease is absent or expired; every delivery gets a unique lease token and increments `deliveryAttempts`. Acknowledgement requires the matching token, so stale workers cannot acknowledge a newer delivery, while repeating an acknowledgement with the same token is safe.
 
 The agent persists failed telemetry as newline-delimited JSON at `NORTHSTAR_SPOOL_PATH` (default `/tmp/northstar-telemetry.spool`), drains older samples before sending new telemetry, and applies jittered exponential retry backoff. `NORTHSTAR_RETRY_BASE_MS` and `NORTHSTAR_RETRY_MAX_MS` tune retry behavior.
 
