@@ -24,12 +24,14 @@ Command delivery uses short, server-issued leases. Pollers atomically claim only
 The agent persists failed telemetry as newline-delimited JSON at `NORTHSTAR_SPOOL_PATH` (default `/tmp/northstar-telemetry.spool`), drains older samples before sending new telemetry, and applies jittered exponential retry backoff. `NORTHSTAR_RETRY_BASE_MS` and `NORTHSTAR_RETRY_MAX_MS` tune retry behavior.
 
 ## v0.3 — Security and observability
-- [ ] Per-host credentials and rotation
+- [x] Per-host credentials and rotation
 - [ ] Signed agent requests
 - [ ] Operator RBAC
 - [ ] OpenTelemetry traces
 - [ ] Prometheus metrics + Grafana
 - [ ] Command audit log
+
+Each host is provisioned with an explicit agent token. Only a SHA-256 digest is persisted; comparisons are constant-time. Heartbeat, telemetry ingestion, command leasing, acknowledgement, and credential rotation require the host token. Rotation immediately invalidates the prior credential. Request signing/replay protection remains separate work.
 
 ## v0.4 — Reproducible scale benchmark
 - [ ] 100/250/500-host scenarios
