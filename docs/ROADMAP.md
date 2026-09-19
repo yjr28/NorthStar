@@ -28,10 +28,13 @@ The agent persists failed telemetry as newline-delimited JSON at `NORTHSTAR_SPOO
 - [ ] Signed agent requests
 - [ ] Operator RBAC
 - [ ] OpenTelemetry traces
-- [ ] Prometheus metrics + Grafana
+- [x] Prometheus metrics endpoint
+- [ ] Grafana dashboards
 - [ ] Command audit log
 
 Each host is provisioned with an explicit agent token. Only a SHA-256 digest is persisted; comparisons are constant-time. Heartbeat, telemetry ingestion, command leasing, acknowledgement, and credential rotation require the host token. Rotation immediately invalidates the prior credential. Request signing/replay protection remains separate work.
+
+The control plane exposes Spring Boot health probes at `/actuator/health` and Prometheus-format JVM, HTTP, process, and datasource metrics at `/actuator/prometheus`. Metrics carry a stable `application=northstar-control-plane` tag. Grafana provisioning remains separate work.
 
 ## v0.4 — Reproducible scale benchmark
 - [ ] 100/250/500-host scenarios
