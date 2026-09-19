@@ -32,3 +32,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_commands_idempotency_key
 CREATE INDEX IF NOT EXISTS idx_commands_host_status ON commands(host_id,status,created_at);
 CREATE INDEX IF NOT EXISTS idx_commands_host_lease ON commands(host_id,lease_expires_at,created_at)
   WHERE status <> 'ACKNOWLEDGED';
+CREATE TABLE IF NOT EXISTS command_audit (
+ id UUID PRIMARY KEY,
+ command_id UUID NOT NULL REFERENCES commands(id) ON DELETE CASCADE,
+ host_id UUID NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+ event_type VARCHAR(32) NOT NULL,
+ actor_type VARCHAR(32) NOT NULL,
+ occurred_at TIMESTAMPTZ NOT NULL,
+ details TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_command_audit_command_time ON command_audit(command_id,occurred_at,id);
+CREATE INDEX IF NOT EXISTS idx_command_audit_host_time ON command_audit(host_id,occurred_at DESC);
