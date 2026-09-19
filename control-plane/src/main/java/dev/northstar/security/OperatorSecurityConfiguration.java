@@ -25,6 +25,7 @@ public class OperatorSecurityConfiguration implements WebMvcConfigurer {
         .excludePathPatterns(
             "/api/v1/hosts/*/heartbeat",
             "/api/v1/hosts/*/credentials/rotate",
+            "/api/v1/hosts/*/telemetry",
             "/api/v1/hosts/*/commands/lease",
             "/api/v1/commands/*/ack");
   }
