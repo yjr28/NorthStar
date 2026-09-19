@@ -58,6 +58,8 @@ Operator-facing APIs use `X-NorthStar-Operator-Key`. Set `NORTHSTAR_OPERATOR_API
 
 Command queue, lease, and acknowledgement transitions append durable audit events transactionally with the corresponding command state change. Audit entries expose actor class and non-secret lifecycle details without copying lease credentials. Read-only operators may inspect the ordered history through `GET /api/v1/commands/{id}/audit`.
 
+Prometheus includes NorthStar lifecycle counters for accepted telemetry, newly queued commands, lease deliveries, successful acknowledgements, acknowledgement conflicts, and agent authentication failures. Idempotent command-create replays do not inflate the queued counter; redelivery after a lease expires is intentionally counted as another lease delivery.
+
 ## API surface
 
 | Method | Path | Purpose |
@@ -77,6 +79,6 @@ Command queue, lease, and acknowledgement transitions append durable audit event
 | POST | `/api/v1/hosts/{id}/commands/lease` | Authenticated atomic command lease |
 | POST | `/api/v1/commands/{id}/ack` | Authenticated token-bound acknowledgement |
 | GET | `/actuator/health` | Liveness/readiness health information |
-| GET | `/actuator/prometheus` | Prometheus-format service/JVM metrics |
+| GET | `/actuator/prometheus` | Prometheus-format service/JVM and NorthStar lifecycle metrics |
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/ROADMAP.md](docs/ROADMAP.md).

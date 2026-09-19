@@ -29,6 +29,7 @@ The agent persists failed telemetry as newline-delimited JSON at `NORTHSTAR_SPOO
 - [x] Operator RBAC (admin/read-only API-key roles)
 - [ ] OpenTelemetry traces
 - [x] Prometheus metrics endpoint
+- [x] NorthStar lifecycle counters
 - [ ] Grafana dashboards
 - [x] Command audit log
 
@@ -38,7 +39,7 @@ Operator APIs fail closed behind `X-NorthStar-Operator-Key`. `NORTHSTAR_OPERATOR
 
 Command lifecycle transitions are durably recorded in PostgreSQL. Queue, lease, and acknowledgement events capture the command, host, actor class, timestamp, and non-secret event details. Audit writes participate in the same database transaction as command state changes, idempotent acknowledgement replay does not create duplicate audit entries, and read-only operators can inspect the ordered history at `GET /api/v1/commands/{id}/audit`.
 
-The control plane exposes Spring Boot health probes at `/actuator/health` and Prometheus-format JVM, HTTP, process, and datasource metrics at `/actuator/prometheus`. Metrics carry a stable `application=northstar-control-plane` tag. Grafana provisioning remains separate work.
+The control plane exposes Spring Boot health probes at `/actuator/health` and Prometheus-format metrics at `/actuator/prometheus`. Metrics carry a stable `application=northstar-control-plane` tag. NorthStar-specific counters cover accepted telemetry, newly queued commands, lease deliveries, successful acknowledgements, acknowledgement conflicts, and rejected agent authentication attempts; JVM, HTTP, process, and datasource instrumentation remains available from Micrometer. Grafana provisioning remains separate work.
 
 ## v0.4 — Reproducible scale benchmark
 - [ ] 100/250/500-host scenarios
