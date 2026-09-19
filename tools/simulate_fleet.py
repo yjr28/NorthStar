@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 import argparse, concurrent.futures, json, random, time, urllib.request, uuid
 
-def post(url, body):
-    req=urllib.request.Request(url,data=json.dumps(body).encode(),headers={"Content-Type":"application/json"},method="POST")
+def post(url, body, token=None):
+    headers={"Content-Type":"application/json"}
+    if token: headers["X-NorthStar-Agent-Token"]=token
+    req=urllib.request.Request(url,data=json.dumps(body).encode(),headers=headers,method="POST")
     with urllib.request.urlopen(req,timeout=10) as r: return r.status
 
 def host(base,i,samples):
-    rng=random.Random(i); hid=str(uuid.uuid4()); ok=0
-    if post(base+"/api/v1/hosts",{"id":hid,"hostname":f"sim-host-{i:03d}","agentVersion":"sim-0.1.0","osName":"Linux","architecture":"x86_64"}) in (200,201): ok+=1
+    rng=random.Random(i); hid=str(uuid.uuid4()); token=f"sim-agent-{hid}"; ok=0
+    if post(base+"/api/v1/hosts",{"id":hid,"hostname":f"sim-host-{i:03d}","agentVersion":"sim-0.3.0","osName":"Linux","architecture":"x86_64","agentToken":token}) in (200,201): ok+=1
     for n in range(samples):
         total=8*1024**3
-        status=post(base+f"/api/v1/hosts/{hid}/telemetry",{"cpuPercent":round(rng.uniform(2,95),2),"memoryUsedBytes":int(total*rng.uniform(.25,.85)),"memoryTotalBytes":total,"load1m":round(rng.uniform(.05,4),2),"uptimeSeconds":3600+n*10,"processCount":rng.randint(80,320)})
+        status=post(base+f"/api/v1/hosts/{hid}/telemetry",{"cpuPercent":round(rng.uniform(2,95),2),"memoryUsedBytes":int(total*rng.uniform(.25,.85)),"memoryTotalBytes":total,"load1m":round(rng.uniform(.05,4),2),"uptimeSeconds":3600+n*10,"processCount":rng.randint(80,320)},token)
         ok += status in (200,201)
     return ok
 
