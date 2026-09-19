@@ -19,7 +19,7 @@ NorthStar is split across native and managed components to model real server-man
                                          fleet simulator
 ```
 
-The collector owns Linux metric acquisition. The agent owns identity and transport. The control plane owns API contracts, liveness, persistence, authorization, command state, and command audit history.
+The collector owns Linux metric acquisition. The agent owns identity and transport. The control plane owns API contracts, liveness, persistence, authorization, command state, command audit history, and service-level observability.
 
 ## Current invariants
 
@@ -35,6 +35,8 @@ The collector owns Linux metric acquisition. The agent owns identity and transpo
 - Admin operator credentials may read and mutate operator resources; read-only operator credentials are limited to GET/HEAD and receive 403 on mutations.
 - Deleting a host cascades to telemetry, command, and associated command audit state.
 - Telemetry query limits are bounded server-side.
+- Prometheus metrics expose accepted telemetry, newly queued commands, lease deliveries, successful acknowledgements, acknowledgement conflicts, and rejected agent authentication attempts in addition to JVM/HTTP/process/datasource instrumentation.
+- Idempotent command replays do not increment the newly-queued counter; lease delivery counts include legitimate redelivery after lease expiry.
 
 ## Next upgrades
 
