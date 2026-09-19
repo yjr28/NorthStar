@@ -16,6 +16,7 @@ springdoc:
 northstar:
   security:
     operator-api-key: ${NORTHSTAR_OPERATOR_API_KEY:}
+    operator-read-api-key: ${NORTHSTAR_OPERATOR_READ_API_KEY:}
 management:
   endpoints:
     web:

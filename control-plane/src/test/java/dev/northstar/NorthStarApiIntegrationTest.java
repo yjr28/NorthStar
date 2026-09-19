@@ -26,18 +26,21 @@ class NorthStarApiIntegrationTest {
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
         .withDatabaseName("northstar").withUsername("northstar").withPassword("northstar");
     private static final String OPERATOR_TOKEN="integration-operator-token-000001";
+    private static final String READER_TOKEN="integration-reader-token-000001";
     @DynamicPropertySource static void database(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("northstar.security.operator-api-key", () -> OPERATOR_TOKEN);
+        registry.add("northstar.security.operator-read-api-key", () -> READER_TOKEN);
     }
     @LocalServerPort int port;
     @Autowired TestRestTemplate http;
     private String url(String path) { return "http://127.0.0.1:" + port + path; }
     private static final String TOKEN="integration-agent-token-000001";
     private HttpHeaders agentHeaders(String token){HttpHeaders h=new HttpHeaders();h.set("X-NorthStar-Agent-Token",token);return h;}
-    private HttpHeaders operatorHeaders(){HttpHeaders h=new HttpHeaders();h.set("X-NorthStar-Operator-Key",OPERATOR_TOKEN);return h;}
+    private HttpHeaders operatorHeaders(){return operatorHeaders(OPERATOR_TOKEN);}
+    private HttpHeaders operatorHeaders(String token){HttpHeaders h=new HttpHeaders();h.set("X-NorthStar-Operator-Key",token);return h;}
     private void register(UUID id,String name){
         http.exchange(url("/api/v1/hosts"),HttpMethod.POST,new HttpEntity<>(Map.of("id",id.toString(),"hostname",name,"agentToken",TOKEN),operatorHeaders()),Map.class);
     }
@@ -58,12 +61,20 @@ class NorthStarApiIntegrationTest {
         UUID hostId=UUID.randomUUID();
         var body=Map.of("id",hostId.toString(),"hostname","operator-boundary-host","agentToken",TOKEN);
         var missing=http.postForEntity(url("/api/v1/hosts"),body,Map.class);
-        HttpHeaders invalidHeaders=new HttpHeaders();invalidHeaders.set("X-NorthStar-Operator-Key","wrong-operator-token");
-        var invalid=http.exchange(url("/api/v1/hosts"),HttpMethod.POST,new HttpEntity<>(body,invalidHeaders),Map.class);
+        var invalid=http.exchange(url("/api/v1/hosts"),HttpMethod.POST,new HttpEntity<>(body,operatorHeaders("wrong-operator-token")),Map.class);
         var valid=http.exchange(url("/api/v1/hosts"),HttpMethod.POST,new HttpEntity<>(body,operatorHeaders()),Map.class);
         assertThat(missing.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(invalid.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(valid.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    }
+
+    @Test void readOnlyOperatorCanObserveButCannotMutate(){
+        UUID hostId=UUID.randomUUID();register(hostId,"rbac-host");
+        var read=http.exchange(url("/api/v1/hosts/"+hostId),HttpMethod.GET,new HttpEntity<>(operatorHeaders(READER_TOKEN)),Map.class);
+        var command=Map.of("hostId",hostId.toString(),"type","PING","payload","{}");
+        var write=http.exchange(url("/api/v1/commands"),HttpMethod.POST,new HttpEntity<>(command,operatorHeaders(READER_TOKEN)),Map.class);
+        assertThat(read.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(write.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test void agentWritesRequireCredentialAndRotationInvalidatesOldToken(){
