@@ -13,6 +13,9 @@ spring:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+northstar:
+  security:
+    operator-api-key: ${NORTHSTAR_OPERATOR_API_KEY:}
 management:
   endpoints:
     web:
