@@ -2,6 +2,7 @@ package dev.northstar;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -55,6 +56,27 @@ class NorthStarApiIntegrationTest {
         var first=http.exchange(url("/api/v1/commands"),HttpMethod.POST,new HttpEntity<>(command,headers),Map.class);
         var replay=http.exchange(url("/api/v1/commands"),HttpMethod.POST,new HttpEntity<>(command,headers),Map.class);
         assertThat(first.getStatusCode()).isEqualTo(HttpStatus.CREATED);assertThat(replay.getStatusCode()).isEqualTo(HttpStatus.OK);assertThat(replay.getBody().get("id")).isEqualTo(first.getBody().get("id"));
+    }
+
+    @Test void commandLifecycleProducesDurableNonDuplicatedAuditEvents(){
+        UUID hostId=UUID.randomUUID();register(hostId,"audit-host");
+        var command=Map.of("hostId",hostId.toString(),"type","PING","payload","{}");
+        var queued=http.exchange(url("/api/v1/commands"),HttpMethod.POST,new HttpEntity<>(command,operatorHeaders()),Map.class);
+        String commandId=queued.getBody().get("id").toString();
+        var leased=http.exchange(url("/api/v1/hosts/"+hostId+"/commands/lease?limit=1"),HttpMethod.POST,new HttpEntity<>(null,agentHeaders(TOKEN)),List.class);
+        assertThat(leased.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?,?> delivery=(Map<?,?>)leased.getBody().get(0);
+        String leaseToken=delivery.get("leaseToken").toString();
+        var ackBody=Map.of("leaseToken",leaseToken);
+        var ack=http.exchange(url("/api/v1/commands/"+commandId+"/ack"),HttpMethod.POST,new HttpEntity<>(ackBody,agentHeaders(TOKEN)),Map.class);
+        var ackReplay=http.exchange(url("/api/v1/commands/"+commandId+"/ack"),HttpMethod.POST,new HttpEntity<>(ackBody,agentHeaders(TOKEN)),Map.class);
+        assertThat(ack.getStatusCode()).isEqualTo(HttpStatus.OK);assertThat(ackReplay.getStatusCode()).isEqualTo(HttpStatus.OK);
+        var audit=http.exchange(url("/api/v1/commands/"+commandId+"/audit"),HttpMethod.GET,new HttpEntity<>(operatorHeaders(READER_TOKEN)),List.class);
+        assertThat(audit.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(audit.getBody()).hasSize(3);
+        assertThat(((Map<?,?>)audit.getBody().get(0)).get("eventType")).isEqualTo("QUEUED");
+        assertThat(((Map<?,?>)audit.getBody().get(1)).get("eventType")).isEqualTo("LEASED");
+        assertThat(((Map<?,?>)audit.getBody().get(2)).get("eventType")).isEqualTo("ACKNOWLEDGED");
     }
 
     @Test void operatorRoutesRequireConfiguredCredential(){

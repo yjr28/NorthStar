@@ -6,7 +6,7 @@ NorthStar is split across native and managed components to model real server-man
 
 1. Low-level host observation without direct control-plane OS access.
 2. Stable agent/control-plane contracts.
-3. Durable host, telemetry, and command state.
+3. Durable host, telemetry, command, and audit state.
 4. Hybrid deployment across local KVM infrastructure and AWS.
 5. Reproducible benchmarks instead of estimated scale claims.
 
@@ -19,7 +19,7 @@ NorthStar is split across native and managed components to model real server-man
                                          fleet simulator
 ```
 
-The collector owns Linux metric acquisition. The agent owns identity and transport. The control plane owns API contracts, liveness, persistence, authorization, and command state.
+The collector owns Linux metric acquisition. The agent owns identity and transport. The control plane owns API contracts, liveness, persistence, authorization, command state, and command audit history.
 
 ## Current invariants
 
@@ -27,12 +27,15 @@ The collector owns Linux metric acquisition. The agent owns identity and transpo
 - Re-registering a host refreshes metadata and liveness.
 - Telemetry is append-only and refreshes liveness.
 - Commands are leased atomically and acknowledged with the active lease token.
+- Queue, lease, and acknowledgement transitions append durable command audit events in the same transaction as the state change.
+- Replaying an already successful acknowledgement with the same lease token does not duplicate its audit event.
+- Command audit records contain actor classes and non-secret lifecycle details; lease credentials are not persisted in audit details.
 - Agent-originated writes authenticate with per-host credentials.
 - Operator routes fail closed when no valid operator credential is supplied.
 - Admin operator credentials may read and mutate operator resources; read-only operator credentials are limited to GET/HEAD and receive 403 on mutations.
-- Deleting a host cascades to telemetry and command state.
+- Deleting a host cascades to telemetry, command, and associated command audit state.
 - Telemetry query limits are bounded server-side.
 
 ## Next upgrades
 
-Signed agent requests/replay protection; durable command audit trail; OpenTelemetry traces and Grafana dashboards; PostgreSQL partitioning; reproducible fleet benchmarks; Terraform/Ansible deployment for AWS and KVM.
+Signed agent requests/replay protection; OpenTelemetry traces and Grafana dashboards; PostgreSQL partitioning; reproducible fleet benchmarks; Terraform/Ansible deployment for AWS and KVM.
