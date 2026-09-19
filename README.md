@@ -2,7 +2,7 @@
 
 NorthStar is a hybrid-cloud server management platform built around native Linux telemetry, a C++ host agent, a Java control plane, PostgreSQL persistence, REST/OpenAPI contracts, and repeatable fleet simulation.
 
-> **Status:** active build. The repository implements host registration, authenticated heartbeat/telemetry, retry-safe command delivery, PostgreSQL-backed control-plane APIs, operator read/admin authorization, health probes, and Prometheus metrics.
+> **Status:** active build. The repository implements host registration, authenticated heartbeat/telemetry, retry-safe command delivery, PostgreSQL-backed control-plane APIs, operator read/admin authorization, durable command auditing, health probes, and Prometheus metrics.
 
 ## Architecture
 
@@ -21,8 +21,8 @@ flowchart LR
 
 - **C telemetry collector** — samples Linux CPU, memory, load, uptime, and process counts.
 - **C++ host agent** — registers a host, streams telemetry, retries with jittered backoff, and locally spools failed samples.
-- **Java control plane** — Spring Boot REST service with per-host agent authentication, read/admin operator authorization, retry-safe command leases, health probes, and Prometheus instrumentation.
-- **PostgreSQL** — stores hosts, credential hashes, telemetry samples, and command state.
+- **Java control plane** — Spring Boot REST service with per-host agent authentication, read/admin operator authorization, retry-safe command leases, durable command lifecycle auditing, health probes, and Prometheus instrumentation.
+- **PostgreSQL** — stores hosts, credential hashes, telemetry samples, command state, and command audit events.
 - **Fleet simulator** — Python stdlib load generator for deterministic multi-host test runs.
 - **Delivery** — Docker Compose for local deployment, GitHub Actions and Jenkins for CI.
 
@@ -56,6 +56,8 @@ Agent-originated heartbeat, telemetry, command leasing, and acknowledgement call
 
 Operator-facing APIs use `X-NorthStar-Operator-Key`. Set `NORTHSTAR_OPERATOR_API_KEY` for the admin credential and optionally `NORTHSTAR_OPERATOR_READ_API_KEY` for a read-only credential. The read-only role may use GET/HEAD operator routes but receives `403 Forbidden` for mutations; invalid or missing credentials receive `401 Unauthorized`. Agent-only routes remain outside this operator boundary.
 
+Command queue, lease, and acknowledgement transitions append durable audit events transactionally with the corresponding command state change. Audit entries expose actor class and non-secret lifecycle details without copying lease credentials. Read-only operators may inspect the ordered history through `GET /api/v1/commands/{id}/audit`.
+
 ## API surface
 
 | Method | Path | Purpose |
@@ -71,6 +73,7 @@ Operator-facing APIs use `X-NorthStar-Operator-Key`. Set `NORTHSTAR_OPERATOR_API
 | GET | `/api/v1/hosts/{id}/status` | Resolve online/offline state |
 | POST | `/api/v1/commands` | Queue a command |
 | GET | `/api/v1/commands/{id}` | Read command state |
+| GET | `/api/v1/commands/{id}/audit` | Read ordered durable command audit history |
 | POST | `/api/v1/hosts/{id}/commands/lease` | Authenticated atomic command lease |
 | POST | `/api/v1/commands/{id}/ack` | Authenticated token-bound acknowledgement |
 | GET | `/actuator/health` | Liveness/readiness health information |
