@@ -1,5 +1,6 @@
 package dev.northstar.api;
 
+import dev.northstar.model.CommandAuditRecord;
 import dev.northstar.model.CommandRecord;
 import dev.northstar.model.HostRecord;
 import dev.northstar.model.TelemetryRecord;
@@ -43,6 +44,7 @@ public class HostController {
 
   @PostMapping("/commands") public ResponseEntity<CommandRecord> queue(@RequestHeader(name="Idempotency-Key",required=false)String key,@Valid @RequestBody CommandCreateRequest q){if(repo.findHost(q.hostId()).isEmpty())return ResponseEntity.notFound().build();if(key!=null&&!key.isBlank()){var existing=repo.findCommandByIdempotencyKey(key);if(existing.isPresent())return ResponseEntity.ok(existing.get());}CommandRecord c=new CommandRecord(UUID.randomUUID(),q.hostId(),q.type(),value(q.payload(),"{}"),"QUEUED",blankToNull(key),OffsetDateTime.now(ZoneOffset.UTC),null,null,null,0);repo.saveCommand(c);return ResponseEntity.created(URI.create("/api/v1/commands/"+c.id())).body(c);}
   @GetMapping("/commands/{id}") public ResponseEntity<CommandRecord> command(@PathVariable UUID id){return repo.findCommand(id).map(ResponseEntity::ok).orElseGet(()->ResponseEntity.notFound().build());}
+  @GetMapping("/commands/{id}/audit") public ResponseEntity<List<CommandAuditRecord>> commandAudit(@PathVariable UUID id){if(repo.findCommand(id).isEmpty())return ResponseEntity.notFound().build();return ResponseEntity.ok(repo.commandAudit(id));}
   @PostMapping("/hosts/{id}/commands/lease") public ResponseEntity<List<CommandRecord>> lease(@PathVariable UUID id,@RequestHeader(name="X-NorthStar-Agent-Token",required=false)String token,@RequestParam(defaultValue="10")int limit){if(!credentials.authenticate(id,token))return ResponseEntity.status(401).build();if(repo.findHost(id).isEmpty())return ResponseEntity.notFound().build();OffsetDateTime now=OffsetDateTime.now(ZoneOffset.UTC);return ResponseEntity.ok(repo.leaseCommands(id,Math.max(1,Math.min(limit,100)),now,now.plus(COMMAND_LEASE)));}
   @PostMapping("/commands/{id}/ack") public ResponseEntity<CommandRecord> ack(@PathVariable UUID id,@RequestHeader(name="X-NorthStar-Agent-Token",required=false)String token,@Valid @RequestBody CommandAckRequest q){var command=repo.findCommand(id);if(command.isEmpty())return ResponseEntity.notFound().build();if(!credentials.authenticate(command.get().hostId(),token))return ResponseEntity.status(401).build();return repo.acknowledge(id,q.leaseToken(),OffsetDateTime.now(ZoneOffset.UTC)).map(ResponseEntity::ok).orElseGet(()->ResponseEntity.status(409).build());}
 

@@ -30,11 +30,13 @@ The agent persists failed telemetry as newline-delimited JSON at `NORTHSTAR_SPOO
 - [ ] OpenTelemetry traces
 - [x] Prometheus metrics endpoint
 - [ ] Grafana dashboards
-- [ ] Command audit log
+- [x] Command audit log
 
 Each host is provisioned with an explicit agent token. Only a SHA-256 digest is persisted; comparisons are constant-time. Heartbeat, telemetry ingestion, command leasing, acknowledgement, and credential rotation require the host token. Rotation immediately invalidates the prior credential. Request signing/replay protection remains separate work.
 
-Operator APIs fail closed behind `X-NorthStar-Operator-Key`. `NORTHSTAR_OPERATOR_API_KEY` grants admin access; optional `NORTHSTAR_OPERATOR_READ_API_KEY` grants GET/HEAD access only and receives 403 on mutation attempts. Invalid or missing credentials receive 401. Durable command auditing remains separate work.
+Operator APIs fail closed behind `X-NorthStar-Operator-Key`. `NORTHSTAR_OPERATOR_API_KEY` grants admin access; optional `NORTHSTAR_OPERATOR_READ_API_KEY` grants GET/HEAD access only and receives 403 on mutation attempts. Invalid or missing credentials receive 401.
+
+Command lifecycle transitions are durably recorded in PostgreSQL. Queue, lease, and acknowledgement events capture the command, host, actor class, timestamp, and non-secret event details. Audit writes participate in the same database transaction as command state changes, idempotent acknowledgement replay does not create duplicate audit entries, and read-only operators can inspect the ordered history at `GET /api/v1/commands/{id}/audit`.
 
 The control plane exposes Spring Boot health probes at `/actuator/health` and Prometheus-format JVM, HTTP, process, and datasource metrics at `/actuator/prometheus`. Metrics carry a stable `application=northstar-control-plane` tag. Grafana provisioning remains separate work.
 
