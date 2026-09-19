@@ -14,9 +14,9 @@ NorthStar is split across native and managed components to model real server-man
 
 ```text
 /proc + sysinfo -> C collector -> C++ agent -> HTTP/JSON -> Java control plane -> PostgreSQL
-                                                  ^
-                                                  |
-                                         fleet simulator
+                                                  ^                 |
+                                                  |                 +-> Prometheus
+                                         fleet simulator            +-> OTLP traces
 ```
 
 The collector owns Linux metric acquisition. The agent owns identity and transport. The control plane owns API contracts, liveness, persistence, authorization, command state, command audit history, and service-level observability.
@@ -37,7 +37,14 @@ The collector owns Linux metric acquisition. The agent owns identity and transpo
 - Telemetry query limits are bounded server-side.
 - Prometheus metrics expose accepted telemetry, newly queued commands, lease deliveries, successful acknowledgements, acknowledgement conflicts, and rejected agent authentication attempts in addition to JVM/HTTP/process/datasource instrumentation.
 - Idempotent command replays do not increment the newly-queued counter; lease delivery counts include legitimate redelivery after lease expiry.
+- Micrometer tracing is bridged to OpenTelemetry and configured for OTLP/HTTP export. The collector endpoint and sampling probability are environment-configurable; no collector is bundled or claimed as deployed.
+
+## Trace path
+
+Spring Boot HTTP observations are the first trace layer and can be exported through OTLP. The default development endpoint is `http://localhost:4318/v1/traces`, overridable with `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`; sampling is controlled by `NORTHSTAR_TRACE_SAMPLE_PROBABILITY`.
+
+This does not yet satisfy the end-to-end trace invariant for commands. Queue, lease/redelivery, and acknowledgement are separate requests, so the next tracing increment must add explicit correlated spans keyed by non-secret command identity rather than pretending independent HTTP spans form one distributed trace. Telemetry ingestion also needs a named domain span and collector-backed verification before the v0.3 tracing item can be closed.
 
 ## Next upgrades
 
-Signed agent requests/replay protection; OpenTelemetry traces and Grafana dashboards; PostgreSQL partitioning; reproducible fleet benchmarks; Terraform/Ansible deployment for AWS and KVM.
+Signed agent requests/replay protection; correlated telemetry/command OpenTelemetry spans and collector verification; Grafana dashboards; PostgreSQL partitioning; reproducible fleet benchmarks; Terraform/Ansible deployment for AWS and KVM.
