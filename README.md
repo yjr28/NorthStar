@@ -2,7 +2,7 @@
 
 NorthStar is a hybrid-cloud server management platform built around native Linux telemetry, a C++ host agent, a Java control plane, PostgreSQL persistence, REST/OpenAPI contracts, and repeatable fleet simulation.
 
-> **Status:** active build. The repository implements host registration, authenticated heartbeat/telemetry, retry-safe command delivery, and PostgreSQL-backed control-plane APIs.
+> **Status:** active build. The repository implements host registration, authenticated heartbeat/telemetry, retry-safe command delivery, PostgreSQL-backed control-plane APIs, health probes, and Prometheus metrics.
 
 ## Architecture
 
@@ -14,13 +14,14 @@ flowchart LR
     J --> P[(PostgreSQL)]
     S[Fleet simulator] -->|HTTP/JSON| J
     J --> O[OpenAPI / Swagger UI]
+    J --> M[Health / Prometheus metrics]
 ```
 
 ### Components
 
 - **C telemetry collector** — samples Linux CPU, memory, load, uptime, and process counts.
 - **C++ host agent** — registers a host, streams telemetry, retries with jittered backoff, and locally spools failed samples.
-- **Java control plane** — Spring Boot REST service with per-host agent authentication and retry-safe command leases.
+- **Java control plane** — Spring Boot REST service with per-host agent authentication, retry-safe command leases, health probes, and Prometheus instrumentation.
 - **PostgreSQL** — stores hosts, credential hashes, telemetry samples, and command state.
 - **Fleet simulator** — Python stdlib load generator for deterministic multi-host test runs.
 - **Delivery** — Docker Compose for local deployment, GitHub Actions and Jenkins for CI.
@@ -32,7 +33,9 @@ docker compose up --build
 ```
 
 Control plane: `http://localhost:8080`  
-Swagger UI: `http://localhost:8080/swagger-ui.html`
+Swagger UI: `http://localhost:8080/swagger-ui.html`  
+Health: `http://localhost:8080/actuator/health`  
+Prometheus metrics: `http://localhost:8080/actuator/prometheus`
 
 Run simulated hosts:
 
@@ -68,5 +71,7 @@ Agent-originated heartbeat, telemetry, command leasing, and acknowledgement call
 | GET | `/api/v1/commands/{id}` | Read command state |
 | POST | `/api/v1/hosts/{id}/commands/lease` | Authenticated atomic command lease |
 | POST | `/api/v1/commands/{id}/ack` | Authenticated token-bound acknowledgement |
+| GET | `/actuator/health` | Liveness/readiness health information |
+| GET | `/actuator/prometheus` | Prometheus-format service/JVM metrics |
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
