@@ -19,9 +19,9 @@
 - [x] Command leasing / retry-safe acknowledgements
 - [x] Agent exponential backoff + local telemetry spool
 
-Command delivery uses short, server-issued leases. Pollers atomically claim only commands whose lease is absent or expired; every delivery gets a unique lease token and increments `deliveryAttempts`. Acknowledgement requires the matching token, so stale workers cannot acknowledge a newer delivery, while repeating an acknowledgement with the same token is safe.
+Command delivery uses short, server-issued leases. Pollers atomically claim only commands whose lease is absent or expired; every delivery gets a unique lease token and increments `deliveryAttempts`. Acknowledgement requires the matching token, so stale workers cannot acknowledge a newer delivery, while repeating an acknowledgement with the same token is safe. Concurrent command creation is atomic at PostgreSQL: racing requests with the same idempotency key converge on the persisted winner rather than leaking a unique-constraint failure.
 
-The agent persists failed telemetry as newline-delimited JSON at `NORTHSTAR_SPOOL_PATH` (default `/tmp/northstar-telemetry.spool`), drains older samples before sending new telemetry, and applies jittered exponential retry backoff. `NORTHSTAR_RETRY_BASE_MS` and `NORTHSTAR_RETRY_MAX_MS` tune retry behavior.
+The agent persists failed telemetry as newline-delimited JSON at `NORTHSTAR_SPOOL_PATH` (default `/tmp/northstar-telemetry.spool`), drains older samples before sending new telemetry, and applies jittered exponential retry backoff. Partial drains replace the live spool through a temporary file plus atomic rename so an interrupted rewrite cannot truncate unsent samples. `NORTHSTAR_RETRY_BASE_MS` and `NORTHSTAR_RETRY_MAX_MS` tune retry behavior.
 
 ## v0.3 — Security and observability
 - [x] Per-host credentials and rotation
@@ -29,7 +29,8 @@ The agent persists failed telemetry as newline-delimited JSON at `NORTHSTAR_SPOO
 - [x] Operator RBAC (admin/read-only API-key roles)
 - [ ] OpenTelemetry traces
   - [x] Micrometer/OpenTelemetry bridge + configurable OTLP export
-  - [ ] correlated telemetry/command domain spans + collector-backed verification
+  - [x] telemetry/command domain observations with correlation attributes
+  - [ ] collector-backed verification
 - [x] Prometheus metrics endpoint
 - [x] NorthStar lifecycle counters
 - [x] Grafana dashboards
@@ -45,7 +46,7 @@ The control plane exposes Spring Boot health probes at `/actuator/health` and Pr
 
 The development Compose stack provisions Prometheus and Grafana with a versioned `NorthStar Control Plane` dashboard covering lifecycle rates, acknowledgement conflicts, authentication failures, HTTP p95 latency, and 5xx rate. Prometheus and Grafana bind to loopback only; CI validates the Compose model and dashboard JSON. This is local observability provisioning, not a claim of a production monitoring deployment.
 
-Micrometer tracing now bridges to OpenTelemetry with configurable OTLP/HTTP export and sampling. This is deliberately tracked as a partial milestone: HTTP observations alone do not correlate command queue, lease/redelivery, and acknowledgement requests into one lifecycle. The tracing item stays open until explicit domain spans and a real collector verification cover telemetry ingestion and command lifecycle end to end.
+Micrometer tracing bridges to OpenTelemetry with configurable OTLP/HTTP export and sampling. Named domain observations now cover telemetry ingestion plus command queue, lease, and acknowledgement persistence work, carrying host/command UUIDs as high-cardinality trace attributes. The tracing item remains open until those observations are actually exported to and verified against a collector.
 
 ## v0.4 — Reproducible scale benchmark
 - [ ] 100/250/500-host scenarios

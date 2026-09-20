@@ -40,6 +40,7 @@ The collector owns Linux metric acquisition. The agent owns identity and transpo
 - HTTP server request histograms are enabled for quantile calculation from Prometheus buckets.
 - The development Compose stack provisions Prometheus scraping plus a Grafana control-plane dashboard. Both UIs bind only to loopback; anonymous Grafana access is a local-development convenience, not a production authentication design.
 - Micrometer tracing is bridged to OpenTelemetry and configured for OTLP/HTTP export. The collector endpoint and sampling probability are environment-configurable; no collector is bundled or claimed as deployed.
+- Telemetry ingestion and command queue/lease/ack persistence work emit named domain observations. Host and command UUIDs are attached as high-cardinality trace attributes, not metric tags, so lifecycle events can be searched without exploding Prometheus cardinality.
 
 ## Observability path
 
@@ -47,10 +48,12 @@ Prometheus scrapes `/actuator/prometheus` every 15 seconds. Grafana's provisione
 
 ## Trace path
 
-Spring Boot HTTP observations are the first trace layer and can be exported through OTLP. The default development endpoint is `http://localhost:4318/v1/traces`, overridable with `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`; sampling is controlled by `NORTHSTAR_TRACE_SAMPLE_PROBABILITY`.
+Spring Boot HTTP observations can be exported through OTLP. The default development endpoint is `http://localhost:4318/v1/traces`, overridable with `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`; sampling is controlled by `NORTHSTAR_TRACE_SAMPLE_PROBABILITY`.
 
-This does not yet satisfy the end-to-end trace invariant for commands. Queue, lease/redelivery, and acknowledgement are separate requests, so the next tracing increment must add explicit correlated spans keyed by non-secret command identity rather than pretending independent HTTP spans form one distributed trace. Telemetry ingestion also needs a named domain span and collector-backed verification before the v0.3 tracing item can be closed.
+NorthStar adds domain observations named `northstar.telemetry.ingest`, `northstar.command.queue`, `northstar.command.lease`, and `northstar.command.ack` around the persistence work for those operations. The observations carry `northstar.host.id` and, where a single command is known, `northstar.command.id` as high-cardinality attributes. These identifiers make independently requested lifecycle stages searchable and correlatable without turning UUIDs into Prometheus labels.
+
+This is still not a claim of verified end-to-end tracing: no OTLP collector is bundled and the exported domain spans have not yet been exercised against a real collector in CI or a documented deployment. Collector-backed verification remains required before the v0.3 tracing item is closed.
 
 ## Next upgrades
 
-Signed agent requests/replay protection; correlated telemetry/command OpenTelemetry spans and collector verification; PostgreSQL partitioning; reproducible fleet benchmarks; Terraform/Ansible deployment for AWS and KVM.
+Signed agent requests/replay protection; collector-backed trace verification; PostgreSQL partitioning; reproducible fleet benchmarks; Terraform/Ansible deployment for AWS and KVM.
