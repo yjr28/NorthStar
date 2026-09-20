@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -22,9 +23,10 @@ public class AgentSignatureFilter extends OncePerRequestFilter {
     private final AgentCredentialService credentials;
     private final AgentRequestSignatureService signatures;
     private final NorthStarMetrics metrics;
-    public AgentSignatureFilter(AgentCredentialService credentials,AgentRequestSignatureService signatures,NorthStarMetrics metrics){this.credentials=credentials;this.signatures=signatures;this.metrics=metrics;}
+    private final boolean required;
+    public AgentSignatureFilter(AgentCredentialService credentials,AgentRequestSignatureService signatures,NorthStarMetrics metrics,@Value("${northstar.security.require-agent-signatures:false}") boolean required){this.credentials=credentials;this.signatures=signatures;this.metrics=metrics;this.required=required;}
 
-    @Override protected boolean shouldNotFilter(HttpServletRequest request){return !"POST".equals(request.getMethod())||!TELEMETRY.matcher(request.getRequestURI()).matches();}
+    @Override protected boolean shouldNotFilter(HttpServletRequest request){return !required||!"POST".equals(request.getMethod())||!TELEMETRY.matcher(request.getRequestURI()).matches();}
     @Override protected void doFilterInternal(HttpServletRequest request,HttpServletResponse response,FilterChain chain)throws ServletException,IOException{
         byte[] body=request.getInputStream().readAllBytes();
         Matcher matcher=TELEMETRY.matcher(request.getRequestURI());matcher.matches();UUID hostId=UUID.fromString(matcher.group(1));
