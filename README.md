@@ -16,7 +16,7 @@ flowchart LR
     J --> O[OpenAPI / Swagger UI]
     J --> M[Prometheus metrics]
     M --> G[Grafana dashboard]
-    J --> T[OTLP trace collector]
+    J --> T[OTLP collector]
 ```
 
 ### Components
@@ -25,7 +25,7 @@ flowchart LR
 - **C++ host agent** — registers a host, streams telemetry, retries with jittered backoff, and locally spools failed samples. Successful spool drains rewrite the remaining queue through a temporary file plus atomic rename, so an interrupted rewrite cannot truncate unsent samples.
 - **Java control plane** — Spring Boot REST service with per-host agent authentication, read/admin operator authorization, retry-safe command leases, durable command lifecycle auditing, health probes, Prometheus instrumentation, and Micrometer/OpenTelemetry tracing.
 - **PostgreSQL** — stores hosts, credential hashes, telemetry samples, command state, and command audit events.
-- **Observability stack** — Prometheus scrapes the control plane and Grafana is provisioned with a dashboard for lifecycle rates, authentication failures, acknowledgement conflicts, HTTP p95 latency, and 5xx rate.
+- **Observability stack** — Prometheus scrapes the control plane, Grafana is provisioned with a lifecycle dashboard, and the local Compose stack includes an OpenTelemetry Collector receiving OTLP/HTTP traces and emitting them through its debug exporter.
 - **Fleet simulator** — Python stdlib load generator for deterministic multi-host test runs.
 - **Delivery** — Docker Compose for local deployment, GitHub Actions and Jenkins for CI.
 
@@ -40,9 +40,10 @@ Swagger UI: `http://localhost:8080/swagger-ui.html`
 Health: `http://localhost:8080/actuator/health`  
 Prometheus metrics: `http://localhost:8080/actuator/prometheus`  
 Prometheus UI: `http://localhost:9090`  
-Grafana: `http://localhost:3000` (anonymous Viewer, loopback-only)
+Grafana: `http://localhost:3000` (anonymous Viewer, loopback-only)  
+OTLP/HTTP receiver: `http://localhost:4318` (loopback-only)
 
-Prometheus and Grafana are intentionally bound to `127.0.0.1` in the development Compose stack. Do not expose the anonymous Grafana configuration on a shared or public interface; production authentication is deployment-specific and remains future work.
+Prometheus, Grafana, and OTLP receiver ports are intentionally bound to `127.0.0.1` in the development Compose stack. Do not expose the anonymous Grafana configuration or development collector ports on a shared or public interface; production authentication is deployment-specific and remains future work.
 
 Run simulated hosts:
 
@@ -68,7 +69,7 @@ Command queue, lease, and acknowledgement transitions append durable audit event
 
 Prometheus includes NorthStar lifecycle counters for accepted telemetry, newly queued commands, lease deliveries, successful acknowledgements, acknowledgement conflicts, and agent authentication failures. Idempotent command-create replays do not inflate the queued counter; redelivery after a lease expires is intentionally counted as another lease delivery. HTTP request histograms are enabled so the provisioned dashboard can compute p95 latency from Prometheus buckets.
 
-The control plane includes Micrometer's OpenTelemetry bridge and OTLP exporter. HTTP server observations can be exported to an OTLP/HTTP collector at `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (default `http://localhost:4318/v1/traces`); `NORTHSTAR_TRACE_SAMPLE_PROBABILITY` controls sampling and defaults to `1.0` while the project is under development. Named domain observations cover telemetry ingestion and command queue/lease/ack persistence, carrying host and command UUIDs as high-cardinality trace attributes so lifecycle stages can be correlated without creating high-cardinality Prometheus labels. No collector is bundled or claimed as deployed; v0.3 tracing remains open until these observations are verified against a real collector.
+The control plane includes Micrometer's OpenTelemetry bridge and OTLP exporter. `NORTHSTAR_TRACE_SAMPLE_PROBABILITY` controls sampling and defaults to `1.0` while the project is under development. Named domain observations cover telemetry ingestion and command queue/lease/ack persistence, carrying host and command UUIDs as high-cardinality trace attributes so lifecycle stages can be correlated without creating high-cardinality Prometheus labels. Docker Compose routes OTLP/HTTP to the bundled development collector, whose debug exporter makes received spans visible in `docker compose logs otel-collector`. This wiring is not a claim of durable trace storage or production deployment; v0.3 remains open until end-to-end lifecycle traces are exercised and verified.
 
 ## API surface
 
