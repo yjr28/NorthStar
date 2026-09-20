@@ -16,7 +16,7 @@ NorthStar is split across native and managed components to model real server-man
 /proc + sysinfo -> C collector -> C++ agent -> HTTP/JSON -> Java control plane -> PostgreSQL
                                                   ^                 |
                                                   |                 +-> Prometheus -> Grafana
-                                         fleet simulator            +-> OTLP traces
+                                         fleet simulator            +-> OTLP collector
 ```
 
 The collector owns Linux metric acquisition. The agent owns identity and transport. The control plane owns API contracts, liveness, persistence, authorization, command state, command audit history, and service-level observability.
@@ -31,6 +31,7 @@ The collector owns Linux metric acquisition. The agent owns identity and transpo
 - Replaying an already successful acknowledgement with the same lease token does not duplicate its audit event.
 - Command audit records contain actor classes and non-secret lifecycle details; lease credentials are not persisted in audit details.
 - Agent-originated writes authenticate with per-host credentials.
+- When telemetry signature enforcement is enabled, telemetry also requires HMAC-SHA256 proof over method, path, timestamp, nonce, and the exact body hash; stale timestamps and reused host/nonces are rejected.
 - Operator routes fail closed when no valid operator credential is supplied.
 - Admin operator credentials may read and mutate operator resources; read-only operator credentials are limited to GET/HEAD and receive 403 on mutations.
 - Deleting a host cascades to telemetry, command, and associated command audit state.
@@ -39,8 +40,14 @@ The collector owns Linux metric acquisition. The agent owns identity and transpo
 - Idempotent command replays do not increment the newly-queued counter; lease delivery counts include legitimate redelivery after lease expiry.
 - HTTP server request histograms are enabled for quantile calculation from Prometheus buckets.
 - The development Compose stack provisions Prometheus scraping plus a Grafana control-plane dashboard. Both UIs bind only to loopback; anonymous Grafana access is a local-development convenience, not a production authentication design.
-- Micrometer tracing is bridged to OpenTelemetry and configured for OTLP/HTTP export. The collector endpoint and sampling probability are environment-configurable; no collector is bundled or claimed as deployed.
+- Micrometer tracing is bridged to OpenTelemetry and configured for OTLP/HTTP export. The development Compose stack bundles an OpenTelemetry Collector with a debug exporter; collector-backed lifecycle verification is still pending.
 - Telemetry ingestion and command queue/lease/ack persistence work emit named domain observations. Host and command UUIDs are attached as high-cardinality trace attributes, not metric tags, so lifecycle events can be searched without exploding Prometheus cardinality.
+
+## Signed telemetry path
+
+The C++ agent computes SHA-256 over the exact JSON bytes being sent, then HMAC-SHA256 over `method`, `path`, RFC 3339 UTC timestamp, UUID nonce, and body digest using the host token. This applies equally to new telemetry and samples drained from the local spool. The control-plane filter authenticates the host token before verifying the signature, enforces a five-minute clock-skew window, and remembers host/nonce pairs to reject replay within that window. Compose enables enforcement with `NORTHSTAR_SECURITY_REQUIRE_AGENT_SIGNATURES=true`.
+
+This is a staged migration rather than completion of signed agent requests: heartbeat, command leasing, acknowledgement, and credential rotation still use token authentication without request signatures. Standalone control-plane processes therefore keep signature enforcement opt-in until those routes are migrated.
 
 ## Observability path
 
@@ -52,8 +59,8 @@ Spring Boot HTTP observations can be exported through OTLP. The default developm
 
 NorthStar adds domain observations named `northstar.telemetry.ingest`, `northstar.command.queue`, `northstar.command.lease`, and `northstar.command.ack` around the persistence work for those operations. The observations carry `northstar.host.id` and, where a single command is known, `northstar.command.id` as high-cardinality attributes. These identifiers make independently requested lifecycle stages searchable and correlatable without turning UUIDs into Prometheus labels.
 
-This is still not a claim of verified end-to-end tracing: no OTLP collector is bundled and the exported domain spans have not yet been exercised against a real collector in CI or a documented deployment. Collector-backed verification remains required before the v0.3 tracing item is closed.
+The local collector plumbing is present, but this is still not a claim of verified end-to-end tracing: exported lifecycle spans have not yet been exercised and asserted against collector output in CI or a documented deployment. Collector-backed verification remains required before the v0.3 tracing item is closed.
 
 ## Next upgrades
 
-Signed agent requests/replay protection; collector-backed trace verification; PostgreSQL partitioning; reproducible fleet benchmarks; Terraform/Ansible deployment for AWS and KVM.
+Extend signed/replay-protected requests to every agent mutation; collector-backed trace verification; PostgreSQL partitioning; reproducible fleet benchmarks; Terraform/Ansible deployment for AWS and KVM.
