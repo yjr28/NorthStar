@@ -2,7 +2,7 @@
 
 NorthStar is a hybrid-cloud server management platform built around native Linux telemetry, a C++ host agent, a Java control plane, PostgreSQL persistence, REST/OpenAPI contracts, and repeatable fleet simulation.
 
-> **Status:** active build. The repository implements host registration, authenticated heartbeat/telemetry, retry-safe command delivery, PostgreSQL-backed control-plane APIs, operator read/admin authorization, durable command auditing, health probes, Prometheus metrics, and OTLP trace export plumbing.
+> **Status:** active build. The repository implements host registration, authenticated heartbeat/telemetry, retry-safe command delivery, PostgreSQL-backed control-plane APIs, operator read/admin authorization, durable command auditing, health probes, Prometheus metrics, a provisioned Grafana control-plane dashboard, and OTLP trace export plumbing.
 
 ## Architecture
 
@@ -14,7 +14,8 @@ flowchart LR
     J --> P[(PostgreSQL)]
     S[Fleet simulator] -->|HTTP/JSON| J
     J --> O[OpenAPI / Swagger UI]
-    J --> M[Health / Prometheus metrics]
+    J --> M[Prometheus metrics]
+    M --> G[Grafana dashboard]
     J --> T[OTLP trace collector]
 ```
 
@@ -24,6 +25,7 @@ flowchart LR
 - **C++ host agent** — registers a host, streams telemetry, retries with jittered backoff, and locally spools failed samples.
 - **Java control plane** — Spring Boot REST service with per-host agent authentication, read/admin operator authorization, retry-safe command leases, durable command lifecycle auditing, health probes, Prometheus instrumentation, and Micrometer/OpenTelemetry tracing.
 - **PostgreSQL** — stores hosts, credential hashes, telemetry samples, command state, and command audit events.
+- **Observability stack** — Prometheus scrapes the control plane and Grafana is provisioned with a dashboard for lifecycle rates, authentication failures, acknowledgement conflicts, HTTP p95 latency, and 5xx rate.
 - **Fleet simulator** — Python stdlib load generator for deterministic multi-host test runs.
 - **Delivery** — Docker Compose for local deployment, GitHub Actions and Jenkins for CI.
 
@@ -36,7 +38,11 @@ docker compose up --build
 Control plane: `http://localhost:8080`  
 Swagger UI: `http://localhost:8080/swagger-ui.html`  
 Health: `http://localhost:8080/actuator/health`  
-Prometheus metrics: `http://localhost:8080/actuator/prometheus`
+Prometheus metrics: `http://localhost:8080/actuator/prometheus`  
+Prometheus UI: `http://localhost:9090`  
+Grafana: `http://localhost:3000` (anonymous Viewer, loopback-only)
+
+Prometheus and Grafana are intentionally bound to `127.0.0.1` in the development Compose stack. Do not expose the anonymous Grafana configuration on a shared or public interface; production authentication is deployment-specific and remains future work.
 
 Run simulated hosts:
 
@@ -59,7 +65,7 @@ Operator-facing APIs use `X-NorthStar-Operator-Key`. Set `NORTHSTAR_OPERATOR_API
 
 Command queue, lease, and acknowledgement transitions append durable audit events transactionally with the corresponding command state change. Audit entries expose actor class and non-secret lifecycle details without copying lease credentials. Read-only operators may inspect the ordered history through `GET /api/v1/commands/{id}/audit`.
 
-Prometheus includes NorthStar lifecycle counters for accepted telemetry, newly queued commands, lease deliveries, successful acknowledgements, acknowledgement conflicts, and agent authentication failures. Idempotent command-create replays do not inflate the queued counter; redelivery after a lease expires is intentionally counted as another lease delivery.
+Prometheus includes NorthStar lifecycle counters for accepted telemetry, newly queued commands, lease deliveries, successful acknowledgements, acknowledgement conflicts, and agent authentication failures. Idempotent command-create replays do not inflate the queued counter; redelivery after a lease expires is intentionally counted as another lease delivery. HTTP request histograms are enabled so the provisioned dashboard can compute p95 latency from Prometheus buckets.
 
 The control plane includes Micrometer's OpenTelemetry bridge and OTLP exporter. HTTP server observations can be exported to an OTLP/HTTP collector at `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (default `http://localhost:4318/v1/traces`); `NORTHSTAR_TRACE_SAMPLE_PROBABILITY` controls sampling and defaults to `1.0` while the project is under development. This is transport plumbing only: the v0.3 tracing milestone remains open until telemetry ingestion and the multi-request command lifecycle have explicit correlated spans and are verified against a collector.
 

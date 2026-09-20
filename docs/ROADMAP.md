@@ -32,7 +32,7 @@ The agent persists failed telemetry as newline-delimited JSON at `NORTHSTAR_SPOO
   - [ ] correlated telemetry/command domain spans + collector-backed verification
 - [x] Prometheus metrics endpoint
 - [x] NorthStar lifecycle counters
-- [ ] Grafana dashboards
+- [x] Grafana dashboards
 - [x] Command audit log
 
 Each host is provisioned with an explicit agent token. Only a SHA-256 digest is persisted; comparisons are constant-time. Heartbeat, telemetry ingestion, command leasing, acknowledgement, and credential rotation require the host token. Rotation immediately invalidates the prior credential. Request signing/replay protection remains separate work.
@@ -41,7 +41,9 @@ Operator APIs fail closed behind `X-NorthStar-Operator-Key`. `NORTHSTAR_OPERATOR
 
 Command lifecycle transitions are durably recorded in PostgreSQL. Queue, lease, and acknowledgement events capture the command, host, actor class, timestamp, and non-secret event details. Audit writes participate in the same database transaction as command state changes, idempotent acknowledgement replay does not create duplicate audit entries, and read-only operators can inspect the ordered history at `GET /api/v1/commands/{id}/audit`.
 
-The control plane exposes Spring Boot health probes at `/actuator/health` and Prometheus-format metrics at `/actuator/prometheus`. Metrics carry a stable `application=northstar-control-plane` tag. NorthStar-specific counters cover accepted telemetry, newly queued commands, lease deliveries, successful acknowledgements, acknowledgement conflicts, and rejected agent authentication attempts; JVM, HTTP, process, and datasource instrumentation remains available from Micrometer. Grafana provisioning remains separate work.
+The control plane exposes Spring Boot health probes at `/actuator/health` and Prometheus-format metrics at `/actuator/prometheus`. Metrics carry a stable `application=northstar-control-plane` tag. NorthStar-specific counters cover accepted telemetry, newly queued commands, lease deliveries, successful acknowledgements, acknowledgement conflicts, and rejected agent authentication attempts; JVM, HTTP, process, and datasource instrumentation remains available from Micrometer.
+
+The development Compose stack provisions Prometheus and Grafana with a versioned `NorthStar Control Plane` dashboard covering lifecycle rates, acknowledgement conflicts, authentication failures, HTTP p95 latency, and 5xx rate. Prometheus and Grafana bind to loopback only; CI validates the Compose model and dashboard JSON. This is local observability provisioning, not a claim of a production monitoring deployment.
 
 Micrometer tracing now bridges to OpenTelemetry with configurable OTLP/HTTP export and sampling. This is deliberately tracked as a partial milestone: HTTP observations alone do not correlate command queue, lease/redelivery, and acknowledgement requests into one lifecycle. The tracing item stays open until explicit domain spans and a real collector verification cover telemetry ingestion and command lifecycle end to end.
 
