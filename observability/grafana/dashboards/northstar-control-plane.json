@@ -1,0 +1,22 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "panels": [
+    {"type":"timeseries","title":"Telemetry accepted / s","id":1,"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"sum(rate(northstar_telemetry_accepted_total[5m]))","legendFormat":"accepted"}],"gridPos":{"h":8,"w":12,"x":0,"y":0}},
+    {"type":"timeseries","title":"Command delivery / s","id":2,"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"sum(rate(northstar_commands_queued_total[5m]))","legendFormat":"queued"},{"refId":"B","expr":"sum(rate(northstar_commands_leased_total[5m]))","legendFormat":"leased"},{"refId":"C","expr":"sum(rate(northstar_commands_acknowledged_total[5m]))","legendFormat":"acknowledged"}],"gridPos":{"h":8,"w":12,"x":12,"y":0}},
+    {"type":"timeseries","title":"Command acknowledgement conflicts / s","id":3,"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"sum(rate(northstar_commands_ack_conflicts_total[5m]))","legendFormat":"conflicts"}],"gridPos":{"h":8,"w":12,"x":0,"y":8}},
+    {"type":"timeseries","title":"Agent authentication failures / s","id":4,"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"sum(rate(northstar_agent_auth_failures_total[5m]))","legendFormat":"failures"}],"gridPos":{"h":8,"w":12,"x":12,"y":8}},
+    {"type":"timeseries","title":"HTTP p95 latency","id":5,"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket[5m])))","legendFormat":"p95"}],"fieldConfig":{"defaults":{"unit":"s"}},"gridPos":{"h":8,"w":12,"x":0,"y":16}},
+    {"type":"timeseries","title":"HTTP 5xx / s","id":6,"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"sum(rate(http_server_requests_seconds_count{status=~\"5..\"}[5m]))","legendFormat":"5xx"}],"gridPos":{"h":8,"w":12,"x":12,"y":16}}
+  ],
+  "refresh":"15s",
+  "schemaVersion":39,
+  "tags":["northstar","control-plane"],
+  "templating":{"list":[]},
+  "time":{"from":"now-1h","to":"now"},
+  "timezone":"browser",
+  "title":"NorthStar Control Plane",
+  "uid":"northstar-control-plane",
+  "version":1
+}
