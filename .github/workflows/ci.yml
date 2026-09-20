@@ -25,3 +25,11 @@ jobs:
           name: control-plane-test-reports
           path: control-plane/target/surefire-reports/
           if-no-files-found: ignore
+  observability-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+      - name: Validate Grafana dashboard JSON
+        run: python3 -m json.tool observability/grafana/dashboards/northstar-control-plane.json >/dev/null
