@@ -48,6 +48,16 @@ public class ControlPlaneRepository {
         appendAudit(c.id(),c.hostId(),"QUEUED","OPERATOR_ADMIN",c.createdAt(),"command accepted for delivery");
         return c;
     }
+
+    @Transactional
+    public IdempotentCommandResult saveCommandIdempotent(CommandRecord c) {
+        if (c.idempotencyKey() == null) return new IdempotentCommandResult(saveCommand(c), true);
+        int inserted=jdbc.update("INSERT INTO commands(id,host_id,type,payload,status,idempotency_key,created_at,acknowledged_at,lease_token,lease_expires_at,delivery_attempts) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT (idempotency_key) DO NOTHING", c.id(),c.hostId(),c.type(),c.payload(),c.status(),c.idempotencyKey(),c.createdAt(),c.acknowledgedAt(),c.leaseToken(),c.leaseExpiresAt(),c.deliveryAttempts());
+        if(inserted==1){appendAudit(c.id(),c.hostId(),"QUEUED","OPERATOR_ADMIN",c.createdAt(),"command accepted for delivery");return new IdempotentCommandResult(c,true);}
+        CommandRecord existing=findCommandByIdempotencyKey(c.idempotencyKey()).orElseThrow(() -> new IllegalStateException("idempotency conflict without persisted command"));
+        return new IdempotentCommandResult(existing,false);
+    }
+    public record IdempotentCommandResult(CommandRecord command, boolean created) {}
     public Optional<CommandRecord> findCommand(UUID id) { return jdbc.query("SELECT * FROM commands WHERE id=?", this::mapCommand, id).stream().findFirst(); }
     public Optional<CommandRecord> findCommandByIdempotencyKey(String key) { return jdbc.query("SELECT * FROM commands WHERE idempotency_key=?", this::mapCommand, key).stream().findFirst(); }
     public List<CommandAuditRecord> commandAudit(UUID commandId) { return jdbc.query("SELECT * FROM command_audit WHERE command_id=? ORDER BY occurred_at,id", this::mapCommandAudit, commandId); }
