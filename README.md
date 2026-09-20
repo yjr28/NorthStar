@@ -23,7 +23,7 @@ flowchart LR
 
 - **C telemetry collector** — samples Linux CPU, memory, load, uptime, and process counts.
 - **C++ host agent** — registers a host, streams telemetry, signs telemetry bodies with HMAC-SHA256, retries with jittered backoff, and locally spools failed samples. Successful spool drains rewrite the remaining queue through a temporary file plus atomic rename, so an interrupted rewrite cannot truncate unsent samples.
-- **Java control plane** — Spring Boot REST service with per-host agent authentication, optional replay-safe signed telemetry enforcement, read/admin operator authorization, retry-safe command leases, durable command lifecycle auditing, health probes, Prometheus instrumentation, and Micrometer/OpenTelemetry tracing.
+- **Java control plane** — Spring Boot REST service with per-host agent authentication, replay-safe signed agent-mutation enforcement, read/admin operator authorization, retry-safe command leases, durable command lifecycle auditing, health probes, Prometheus instrumentation, and Micrometer/OpenTelemetry tracing.
 - **PostgreSQL** — stores hosts, credential hashes, telemetry samples, command state, and command audit events.
 - **Observability stack** — Prometheus scrapes the control plane, Grafana is provisioned with a lifecycle dashboard, and the local Compose stack includes an OpenTelemetry Collector receiving OTLP/HTTP traces and emitting them through its debug exporter.
 - **Fleet simulator** — Python stdlib load generator for deterministic multi-host test runs.
@@ -61,7 +61,7 @@ export NORTHSTAR_AGENT_TOKEN='replace-with-a-random-secret-at-least-24-chars'
 NORTHSTAR_ONCE=1 ./build/northstar-agent
 ```
 
-Agent-originated heartbeat, telemetry, command leasing, and acknowledgement calls authenticate with `X-NorthStar-Agent-Token`. Telemetry emitted by the C++ agent additionally carries an HMAC-SHA256 signature over method, path, timestamp, nonce, and the exact body hash. When `NORTHSTAR_SECURITY_REQUIRE_AGENT_SIGNATURES=true`, the control plane rejects stale, replayed, body-tampered, or incorrectly signed telemetry. Docker Compose enables this enforcement. Standalone deployments currently opt in because heartbeat, command lease/ack, and rotation still need migration to the same signed protocol; v0.3 remains open until all agent mutations are covered. Rotate a credential through `POST /api/v1/hosts/{id}/credentials/rotate` while presenting the current token. Rotation invalidates the old token immediately.
+Agent-originated heartbeat, telemetry, command leasing, acknowledgement, and credential rotation calls authenticate with `X-NorthStar-Agent-Token`. When `NORTHSTAR_SECURITY_REQUIRE_AGENT_SIGNATURES=true`, every post-registration agent mutation must also carry an HMAC-SHA256 signature over method, path, timestamp, nonce, and the exact body hash; the control plane rejects stale, replayed, body-tampered, or incorrectly signed requests. Command acknowledgement resolves the owning host before verification so the same per-host credential boundary applies even though the host ID is not present in the acknowledgement URL. Docker Compose enables enforcement; standalone deployments may opt in with the same setting. The current C++ agent emits signed live and spooled telemetry; other agent mutation APIs are ready for signed clients as command/heartbeat behavior is added. Rotate a credential through `POST /api/v1/hosts/{id}/credentials/rotate` while signing with and presenting the current token. Rotation invalidates the old token immediately.
 
 Operator-facing APIs use `X-NorthStar-Operator-Key`. Set `NORTHSTAR_OPERATOR_API_KEY` for the admin credential and optionally `NORTHSTAR_OPERATOR_READ_API_KEY` for a read-only credential. The read-only role may use GET/HEAD operator routes but receives `403 Forbidden` for mutations; invalid or missing credentials receive `401 Unauthorized`. Agent-only routes remain outside this operator boundary.
 
@@ -79,16 +79,16 @@ The control plane includes Micrometer's OpenTelemetry bridge and OTLP exporter. 
 | GET | `/api/v1/hosts` | List hosts |
 | GET | `/api/v1/hosts/{id}` | Read host metadata |
 | DELETE | `/api/v1/hosts/{id}` | Remove a host |
-| POST | `/api/v1/hosts/{id}/heartbeat` | Authenticated liveness update |
-| POST | `/api/v1/hosts/{id}/credentials/rotate` | Rotate agent credential |
-| POST | `/api/v1/hosts/{id}/telemetry` | Authenticated telemetry ingestion; signed when enforcement is enabled |
+| POST | `/api/v1/hosts/{id}/heartbeat` | Authenticated + signed liveness update when signature enforcement is enabled |
+| POST | `/api/v1/hosts/{id}/credentials/rotate` | Authenticated + signed credential rotation when signature enforcement is enabled |
+| POST | `/api/v1/hosts/{id}/telemetry` | Authenticated + signed telemetry ingestion when signature enforcement is enabled |
 | GET | `/api/v1/hosts/{id}/telemetry` | Read recent telemetry |
 | GET | `/api/v1/hosts/{id}/status` | Resolve online/offline state |
 | POST | `/api/v1/commands` | Queue a command |
 | GET | `/api/v1/commands/{id}` | Read command state |
 | GET | `/api/v1/commands/{id}/audit` | Read ordered durable command audit history |
-| POST | `/api/v1/hosts/{id}/commands/lease` | Authenticated atomic command lease |
-| POST | `/api/v1/commands/{id}/ack` | Authenticated token-bound acknowledgement |
+| POST | `/api/v1/hosts/{id}/commands/lease` | Authenticated + signed atomic command lease when signature enforcement is enabled |
+| POST | `/api/v1/commands/{id}/ack` | Authenticated + signed token-bound acknowledgement when signature enforcement is enabled |
 | GET | `/actuator/health` | Liveness/readiness health information |
 | GET | `/actuator/prometheus` | Prometheus-format service/JVM and NorthStar lifecycle metrics |
 
