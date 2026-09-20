@@ -33,6 +33,7 @@ services:
       DATABASE_USER: northstar
       DATABASE_PASSWORD: northstar
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
+      NORTHSTAR_SECURITY_REQUIRE_AGENT_SIGNATURES: "true"
     ports: ["8080:8080"]
     depends_on:
       postgres: { condition: service_healthy }
