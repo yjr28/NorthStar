@@ -31,7 +31,8 @@ The collector owns Linux metric acquisition. The agent owns identity and transpo
 - Replaying an already successful acknowledgement with the same lease token does not duplicate its audit event.
 - Command audit records contain actor classes and non-secret lifecycle details; lease credentials are not persisted in audit details.
 - Agent-originated writes authenticate with per-host credentials.
-- When telemetry signature enforcement is enabled, telemetry also requires HMAC-SHA256 proof over method, path, timestamp, nonce, and the exact body hash; stale timestamps and reused host/nonces are rejected.
+- When agent signature enforcement is enabled, every post-registration agent mutation requires HMAC-SHA256 proof over method, path, timestamp, nonce, and the exact body hash; stale timestamps and reused host/nonces are rejected.
+- Command acknowledgements resolve the command's owning host before signature verification because their URL contains a command ID rather than a host ID.
 - Operator routes fail closed when no valid operator credential is supplied.
 - Admin operator credentials may read and mutate operator resources; read-only operator credentials are limited to GET/HEAD and receive 403 on mutations.
 - Deleting a host cascades to telemetry, command, and associated command audit state.
@@ -43,11 +44,11 @@ The collector owns Linux metric acquisition. The agent owns identity and transpo
 - Micrometer tracing is bridged to OpenTelemetry and configured for OTLP/HTTP export. The development Compose stack bundles an OpenTelemetry Collector with a debug exporter; collector-backed lifecycle verification is still pending.
 - Telemetry ingestion and command queue/lease/ack persistence work emit named domain observations. Host and command UUIDs are attached as high-cardinality trace attributes, not metric tags, so lifecycle events can be searched without exploding Prometheus cardinality.
 
-## Signed telemetry path
+## Signed agent path
 
-The C++ agent computes SHA-256 over the exact JSON bytes being sent, then HMAC-SHA256 over `method`, `path`, RFC 3339 UTC timestamp, UUID nonce, and body digest using the host token. This applies equally to new telemetry and samples drained from the local spool. The control-plane filter authenticates the host token before verifying the signature, enforces a five-minute clock-skew window, and remembers host/nonce pairs to reject replay within that window. Compose enables enforcement with `NORTHSTAR_SECURITY_REQUIRE_AGENT_SIGNATURES=true`.
+The signature protocol computes SHA-256 over the exact HTTP body bytes, then HMAC-SHA256 over `method`, `path`, RFC 3339 UTC timestamp, UUID nonce, and body digest using the host token. The control-plane filter first identifies the host (directly from host-scoped routes, or through command ownership for acknowledgement), authenticates the host token, verifies the signature, enforces a five-minute clock-skew window, and rejects reuse of a host/nonce pair within that window.
 
-This is a staged migration rather than completion of signed agent requests: heartbeat, command leasing, acknowledgement, and credential rotation still use token authentication without request signatures. Standalone control-plane processes therefore keep signature enforcement opt-in until those routes are migrated.
+The filter covers heartbeat, telemetry ingestion, command leasing, command acknowledgement, and credential rotation whenever `NORTHSTAR_SECURITY_REQUIRE_AGENT_SIGNATURES=true`. Host registration remains the credential bootstrap operation and is intentionally outside this post-registration signature boundary. The current C++ agent signs both new telemetry and samples drained from its local spool; future heartbeat and command client behavior must use the same protocol. Compose enables signature enforcement, while standalone deployments may opt in with the same setting.
 
 ## Observability path
 
@@ -63,4 +64,4 @@ The local collector plumbing is present, but this is still not a claim of verifi
 
 ## Next upgrades
 
-Extend signed/replay-protected requests to every agent mutation; collector-backed trace verification; PostgreSQL partitioning; reproducible fleet benchmarks; Terraform/Ansible deployment for AWS and KVM.
+Collector-backed trace verification; PostgreSQL partitioning; reproducible fleet benchmarks; Terraform/Ansible deployment for AWS and KVM.
