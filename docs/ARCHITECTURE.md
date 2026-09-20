@@ -15,7 +15,7 @@ NorthStar is split across native and managed components to model real server-man
 ```text
 /proc + sysinfo -> C collector -> C++ agent -> HTTP/JSON -> Java control plane -> PostgreSQL
                                                   ^                 |
-                                                  |                 +-> Prometheus
+                                                  |                 +-> Prometheus -> Grafana
                                          fleet simulator            +-> OTLP traces
 ```
 
@@ -37,7 +37,13 @@ The collector owns Linux metric acquisition. The agent owns identity and transpo
 - Telemetry query limits are bounded server-side.
 - Prometheus metrics expose accepted telemetry, newly queued commands, lease deliveries, successful acknowledgements, acknowledgement conflicts, and rejected agent authentication attempts in addition to JVM/HTTP/process/datasource instrumentation.
 - Idempotent command replays do not increment the newly-queued counter; lease delivery counts include legitimate redelivery after lease expiry.
+- HTTP server request histograms are enabled for quantile calculation from Prometheus buckets.
+- The development Compose stack provisions Prometheus scraping plus a Grafana control-plane dashboard. Both UIs bind only to loopback; anonymous Grafana access is a local-development convenience, not a production authentication design.
 - Micrometer tracing is bridged to OpenTelemetry and configured for OTLP/HTTP export. The collector endpoint and sampling probability are environment-configurable; no collector is bundled or claimed as deployed.
+
+## Observability path
+
+Prometheus scrapes `/actuator/prometheus` every 15 seconds. Grafana's provisioned Prometheus datasource and `NorthStar Control Plane` dashboard visualize telemetry and command lifecycle rates, acknowledgement conflicts, rejected agent authentication, HTTP p95 latency, and HTTP 5xx rate. Dashboard JSON and the Compose model are syntax-validated in CI; runtime production monitoring remains deployment-specific.
 
 ## Trace path
 
@@ -47,4 +53,4 @@ This does not yet satisfy the end-to-end trace invariant for commands. Queue, le
 
 ## Next upgrades
 
-Signed agent requests/replay protection; correlated telemetry/command OpenTelemetry spans and collector verification; Grafana dashboards; PostgreSQL partitioning; reproducible fleet benchmarks; Terraform/Ansible deployment for AWS and KVM.
+Signed agent requests/replay protection; correlated telemetry/command OpenTelemetry spans and collector verification; PostgreSQL partitioning; reproducible fleet benchmarks; Terraform/Ansible deployment for AWS and KVM.
