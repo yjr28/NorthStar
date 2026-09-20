@@ -25,9 +25,9 @@ The agent persists failed telemetry as newline-delimited JSON at `NORTHSTAR_SPOO
 
 ## v0.3 — Security and observability
 - [x] Per-host credentials and rotation
-- [ ] Signed agent requests
+- [x] Signed agent requests
   - [x] HMAC-SHA256 signed telemetry with body integrity, timestamp window, and nonce replay rejection
-  - [ ] extend signing to heartbeat, command lease/ack, and credential rotation
+  - [x] enforce the same signed protocol on heartbeat, command lease/ack, and credential rotation
 - [x] Operator RBAC (admin/read-only API-key roles)
 - [ ] OpenTelemetry traces
   - [x] Micrometer/OpenTelemetry bridge + configurable OTLP export
@@ -40,7 +40,7 @@ The agent persists failed telemetry as newline-delimited JSON at `NORTHSTAR_SPOO
 
 Each host is provisioned with an explicit agent token. Only a SHA-256 digest is persisted; comparisons are constant-time. Heartbeat, telemetry ingestion, command leasing, acknowledgement, and credential rotation require the host token. Rotation immediately invalidates the prior credential.
 
-Telemetry can additionally require HMAC-SHA256 request signatures. The signature covers method, request path, RFC 3339 UTC timestamp, UUID nonce, and SHA-256 of the exact request body. The server rejects signatures outside a five-minute clock window and re-use of a host/nonce pair. The C++ agent signs both live and replayed spool telemetry. Compose enables enforcement with `NORTHSTAR_SECURITY_REQUIRE_AGENT_SIGNATURES=true`; the standalone control plane keeps it opt-in while the remaining agent endpoints are migrated. This is intentionally not marked complete until every agent mutation is signed and replay-protected.
+When signature enforcement is enabled, every post-registration agent mutation additionally requires HMAC-SHA256 request authentication. The signature covers method, request path, RFC 3339 UTC timestamp, UUID nonce, and SHA-256 of the exact request body. The server rejects signatures outside a five-minute clock window and re-use of a host/nonce pair. For command acknowledgement, the server resolves the command's owning host before verifying the signature. The C++ agent signs both live and replayed spool telemetry; future heartbeat/command client behavior must use the same protocol. Compose enables enforcement with `NORTHSTAR_SECURITY_REQUIRE_AGENT_SIGNATURES=true`; standalone deployments may opt in with the same setting.
 
 Operator APIs fail closed behind `X-NorthStar-Operator-Key`. `NORTHSTAR_OPERATOR_API_KEY` grants admin access; optional `NORTHSTAR_OPERATOR_READ_API_KEY` grants GET/HEAD access only and receives 403 on mutation attempts. Invalid or missing credentials receive 401.
 
