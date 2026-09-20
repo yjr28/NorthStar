@@ -22,8 +22,8 @@ flowchart LR
 ### Components
 
 - **C telemetry collector** — samples Linux CPU, memory, load, uptime, and process counts.
-- **C++ host agent** — registers a host, streams telemetry, retries with jittered backoff, and locally spools failed samples. Successful spool drains rewrite the remaining queue through a temporary file plus atomic rename, so an interrupted rewrite cannot truncate unsent samples.
-- **Java control plane** — Spring Boot REST service with per-host agent authentication, read/admin operator authorization, retry-safe command leases, durable command lifecycle auditing, health probes, Prometheus instrumentation, and Micrometer/OpenTelemetry tracing.
+- **C++ host agent** — registers a host, streams telemetry, signs telemetry bodies with HMAC-SHA256, retries with jittered backoff, and locally spools failed samples. Successful spool drains rewrite the remaining queue through a temporary file plus atomic rename, so an interrupted rewrite cannot truncate unsent samples.
+- **Java control plane** — Spring Boot REST service with per-host agent authentication, optional replay-safe signed telemetry enforcement, read/admin operator authorization, retry-safe command leases, durable command lifecycle auditing, health probes, Prometheus instrumentation, and Micrometer/OpenTelemetry tracing.
 - **PostgreSQL** — stores hosts, credential hashes, telemetry samples, command state, and command audit events.
 - **Observability stack** — Prometheus scrapes the control plane, Grafana is provisioned with a lifecycle dashboard, and the local Compose stack includes an OpenTelemetry Collector receiving OTLP/HTTP traces and emitting them through its debug exporter.
 - **Fleet simulator** — Python stdlib load generator for deterministic multi-host test runs.
@@ -61,7 +61,7 @@ export NORTHSTAR_AGENT_TOKEN='replace-with-a-random-secret-at-least-24-chars'
 NORTHSTAR_ONCE=1 ./build/northstar-agent
 ```
 
-Agent-originated heartbeat, telemetry, command leasing, and acknowledgement calls authenticate with `X-NorthStar-Agent-Token`. Rotate a credential through `POST /api/v1/hosts/{id}/credentials/rotate` while presenting the current token. Rotation invalidates the old token immediately.
+Agent-originated heartbeat, telemetry, command leasing, and acknowledgement calls authenticate with `X-NorthStar-Agent-Token`. Telemetry emitted by the C++ agent additionally carries an HMAC-SHA256 signature over method, path, timestamp, nonce, and the exact body hash. When `NORTHSTAR_SECURITY_REQUIRE_AGENT_SIGNATURES=true`, the control plane rejects stale, replayed, body-tampered, or incorrectly signed telemetry. Docker Compose enables this enforcement. Standalone deployments currently opt in because heartbeat, command lease/ack, and rotation still need migration to the same signed protocol; v0.3 remains open until all agent mutations are covered. Rotate a credential through `POST /api/v1/hosts/{id}/credentials/rotate` while presenting the current token. Rotation invalidates the old token immediately.
 
 Operator-facing APIs use `X-NorthStar-Operator-Key`. Set `NORTHSTAR_OPERATOR_API_KEY` for the admin credential and optionally `NORTHSTAR_OPERATOR_READ_API_KEY` for a read-only credential. The read-only role may use GET/HEAD operator routes but receives `403 Forbidden` for mutations; invalid or missing credentials receive `401 Unauthorized`. Agent-only routes remain outside this operator boundary.
 
@@ -81,7 +81,7 @@ The control plane includes Micrometer's OpenTelemetry bridge and OTLP exporter. 
 | DELETE | `/api/v1/hosts/{id}` | Remove a host |
 | POST | `/api/v1/hosts/{id}/heartbeat` | Authenticated liveness update |
 | POST | `/api/v1/hosts/{id}/credentials/rotate` | Rotate agent credential |
-| POST | `/api/v1/hosts/{id}/telemetry` | Authenticated telemetry ingestion |
+| POST | `/api/v1/hosts/{id}/telemetry` | Authenticated telemetry ingestion; signed when enforcement is enabled |
 | GET | `/api/v1/hosts/{id}/telemetry` | Read recent telemetry |
 | GET | `/api/v1/hosts/{id}/status` | Resolve online/offline state |
 | POST | `/api/v1/commands` | Queue a command |
