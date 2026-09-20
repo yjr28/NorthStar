@@ -12,15 +12,31 @@ services:
       retries: 20
     volumes:
       - northstar_pg:/var/lib/postgresql/data
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.112.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./observability/otel-collector.yml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+      - "127.0.0.1:13133:13133"
+    healthcheck:
+      test: ["CMD", "/otelcol-contrib", "components"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   control-plane:
     build: { context: ./control-plane }
     environment:
       DATABASE_URL: jdbc:postgresql://postgres:5432/northstar
       DATABASE_USER: northstar
       DATABASE_PASSWORD: northstar
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
     ports: ["8080:8080"]
     depends_on:
       postgres: { condition: service_healthy }
+      otel-collector: { condition: service_started }
   prometheus:
     image: prom/prometheus:v2.55.1
     command: ["--config.file=/etc/prometheus/prometheus.yml"]
