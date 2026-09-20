@@ -22,7 +22,7 @@ flowchart LR
 ### Components
 
 - **C telemetry collector** — samples Linux CPU, memory, load, uptime, and process counts.
-- **C++ host agent** — registers a host, streams telemetry, retries with jittered backoff, and locally spools failed samples.
+- **C++ host agent** — registers a host, streams telemetry, retries with jittered backoff, and locally spools failed samples. Successful spool drains rewrite the remaining queue through a temporary file plus atomic rename, so an interrupted rewrite cannot truncate unsent samples.
 - **Java control plane** — Spring Boot REST service with per-host agent authentication, read/admin operator authorization, retry-safe command leases, durable command lifecycle auditing, health probes, Prometheus instrumentation, and Micrometer/OpenTelemetry tracing.
 - **PostgreSQL** — stores hosts, credential hashes, telemetry samples, command state, and command audit events.
 - **Observability stack** — Prometheus scrapes the control plane and Grafana is provisioned with a dashboard for lifecycle rates, authentication failures, acknowledgement conflicts, HTTP p95 latency, and 5xx rate.
@@ -50,11 +50,12 @@ Run simulated hosts:
 python3 tools/simulate_fleet.py --hosts 100 --samples 3
 ```
 
-Build the native collector + agent. Agent credentials are explicit: the process refuses to start without a token of at least 24 characters, and the server stores only its SHA-256 digest.
+Build and test the native collector + agent. Agent credentials are explicit: the process refuses to start without a token of at least 24 characters, and the server stores only its SHA-256 digest.
 
 ```bash
 cmake -S . -B build
 cmake --build build -j
+ctest --test-dir build --output-on-failure
 export NORTHSTAR_AGENT_TOKEN='replace-with-a-random-secret-at-least-24-chars'
 NORTHSTAR_ONCE=1 ./build/northstar-agent
 ```
