@@ -1,4 +1,4 @@
-# NorthStar
+\n**Live demo:** https://yjr28.github.io/yjr28profile/projects/northstar/\n# NorthStar
 
 NorthStar is a hybrid-cloud server management platform built around native Linux telemetry, a C++ host agent, a Java control plane, PostgreSQL persistence, REST/OpenAPI contracts, and repeatable fleet simulation.
 
