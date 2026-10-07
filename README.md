@@ -1,4 +1,4 @@
-\n**Live demo:** https://yjr28.github.io/yjr28profile/projects/northstar/\n# NorthStar
+\n**Live demo:** https://yjr28.github.io/yjr28profile/projects/northstar/\n\nThe public page is a credential-free fleet operations lab that mirrors the `HostController` host-status and command lifecycle contract in the browser. The real Java/Spring + PostgreSQL control plane remains in this repository and is intentionally not exposed as an unauthenticated public backend.\n# NorthStar
 
 NorthStar is a hybrid-cloud server management platform built around native Linux telemetry, a C++ host agent, a Java control plane, PostgreSQL persistence, REST/OpenAPI contracts, and repeatable fleet simulation.
 
